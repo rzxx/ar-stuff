@@ -10,6 +10,10 @@ const FX_MAP = {
 
 const activeFX = new Set();
 
+function markEdited() {
+  document.getElementById('fx-reset')?.classList.remove('active');
+}
+
 function applyFX() {
   const parts = [];
   let vignette = false;
@@ -59,15 +63,23 @@ function resetAllFX() {
   viewer.style.filter = '';
   toggleVignette(false);
   document.getElementById('tone-mapping').value = 'neutral';
+  viewer.toneMapping = 'neutral';
   document.getElementById('exposure').value = '1';
+  viewer.exposure = 1;
   document.getElementById('exposure-value').textContent = '1.00';
   document.getElementById('shadow').value = '0.65';
+  viewer.shadowIntensity = 0.65;
   document.getElementById('shadow-value').textContent = '0.65';
 }
 
-async function init() {
-  await viewer.updateComplete;
+function waitForModelLoad() {
+  if (viewer.loaded) return Promise.resolve();
+  return new Promise(resolve => {
+    viewer.addEventListener('load', resolve, { once: true });
+  });
+}
 
+function renderAnimations() {
   const anims = viewer.availableAnimations;
   const container = document.getElementById('anim-buttons');
   container.innerHTML = '';
@@ -75,37 +87,49 @@ async function init() {
   if (anims.length === 0) {
     container.innerHTML = '<span style="color:#666;font-size:12px">No animations</span>';
   } else {
-    anims.forEach((clip, i) => {
+    anims.forEach((name) => {
       const btn = document.createElement('button');
-      btn.textContent = clip.name;
-      btn.dataset.anim = clip.name;
-      if (clip.name === viewer.animationName) btn.classList.add('active');
+      btn.textContent = name;
+      btn.dataset.anim = name;
+      if (name === viewer.animationName) btn.classList.add('active');
       btn.addEventListener('click', () => {
         container.querySelectorAll('button').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        viewer.animationName = clip.name;
+        viewer.animationName = name;
+        viewer.play();
       });
       container.appendChild(btn);
     });
   }
+}
+
+async function init() {
+  await customElements.whenDefined('model-viewer');
+  await viewer.updateComplete;
+  await waitForModelLoad();
+
+  renderAnimations();
 
   document.getElementById('tone-mapping').addEventListener('change', (e) => {
     viewer.toneMapping = e.target.value;
+    markEdited();
   });
 
   document.getElementById('exposure').addEventListener('input', (e) => {
     viewer.exposure = parseFloat(e.target.value);
     document.getElementById('exposure-value').textContent = parseFloat(e.target.value).toFixed(2);
+    markEdited();
   });
 
   document.getElementById('shadow').addEventListener('input', (e) => {
     viewer.shadowIntensity = parseFloat(e.target.value);
     document.getElementById('shadow-value').textContent = parseFloat(e.target.value).toFixed(2);
+    markEdited();
   });
 
   document.querySelectorAll('.fx-btn[data-fx]').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.getElementById('fx-reset').classList.remove('active');
+      markEdited();
       toggleFX(btn.dataset.fx);
     });
   });
